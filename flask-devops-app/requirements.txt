@@ -1,0 +1,4 @@
+flask
+gunicorn
+flask==3.0.0
+ 
