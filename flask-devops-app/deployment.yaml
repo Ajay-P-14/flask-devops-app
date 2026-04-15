@@ -2,22 +2,72 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: flask-devops-app
+  labels:
+    app: flask-devops-app
 spec:
   replicas: 2
+
+  # Zero-downtime rolling update
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1        # 1 extra pod during update
+      maxUnavailable: 0  # never kill pod before new one is ready
+
   selector:
     matchLabels:
       app: flask-devops-app
+
   template:
     metadata:
       labels:
         app: flask-devops-app
+
     spec:
       containers:
       - name: flask-devops-app
         image: ajayp/flask-devops-app:latest
+        imagePullPolicy: Always   # always pull fresh image from DockerHub
+
         ports:
         - containerPort: 5000
+
+        # Environment variables
+        env:
+        - name: APP_ENV
+          value: "production"
+        - name: PORT
+          value: "5000"
+        - name: APP_VERSION
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.resourceVersion  # auto version tracking
+
+        # Resource limits (important on single EC2!)
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "300m"
+
+        # Liveness — restart pod if app is dead
         livenessProbe:
           httpGet:
             path: /health
             port: 5000
+          initialDelaySeconds: 15  # wait before first check
+          periodSeconds: 20        # check every 20s
+          failureThreshold: 3      # restart after 3 failures
+          timeoutSeconds: 5
+
+        # Readiness — only send traffic when app is ready
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 10  # wait before first check
+          periodSeconds: 10        # check every 10s
+          failureThreshold: 3      # remove from LB after 3 failures
+          timeoutSeconds: 5
