@@ -21,18 +21,20 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
-            steps {
-                echo "Building Docker image..."
-                sh """
-                    pwd
-            ls -la
-            cat Dockerfile
-            DOCKER_BUILDKIT=0 docker build -f Dockerfile -t ${IMAGE_NAME}:${IMAGE_TAG} .
-            docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest
-                """
-            }
+        sstage('Build Docker Image') {
+    steps {
+        echo "Building Docker image..."
+        dir('flask-devops-app') {
+            sh """
+                pwd
+                ls -la
+                cat Dockerfile
+                DOCKER_BUILDKIT=0 docker build -f Dockerfile -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest
+            """
         }
+    }
+}
 
         stage('Test Application') {
             steps {
