@@ -1,11 +1,20 @@
 apiVersion: v1
 kind: Service
+
 metadata:
-  name: flask-service
+  name: flask-devops-app        # matches deployment name (consistent)
+  labels:
+    app: flask-devops-app
+
 spec:
   selector:
-    app: flask-devops-app
-  ports:
-    - port: 80
-      targetPort: 5000
+    app: flask-devops-app       # must match deployment template labels
+
   type: NodePort
+
+  ports:
+  - name: http                  # named port (best practice)
+    protocol: TCP
+    port: 80                    # ClusterIP port (internal)
+    targetPort: 5000            # container port (your Flask app)
+    nodePort: 30007             # fixed external port (range: 30000-32767)
