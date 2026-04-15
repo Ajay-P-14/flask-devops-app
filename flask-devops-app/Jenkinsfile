@@ -6,7 +6,7 @@ pipeline {
 
     environment {
         APP_NAME   = "flask-devops-app"
-        IMAGE_NAME = "ajayp/flask-devops-app"
+        IMAGE_NAME = "ajay3502/flask-devops-app"
         IMAGE_TAG  = "${BUILD_NUMBER}"
         CONTAINER  = "flask-test-container"
     }
