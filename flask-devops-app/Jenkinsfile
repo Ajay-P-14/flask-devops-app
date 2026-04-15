@@ -21,7 +21,7 @@ pipeline {
             }
         }
 
-        sstage('Build Docker Image') {
+        stage('Build Docker Image') {
     steps {
         echo "Building Docker image..."
         dir('flask-devops-app') {
@@ -73,23 +73,18 @@ pipeline {
                 }
             }
         }
-
-        stage('Deploy to Kubernetes') {
-            steps {
-                echo "Deploying application to Kubernetes..."
-                sh """
-                    # Dynamically update the image tag in deployment
-                    kubectl set image deployment/flask-devops-app \
-                        flask-devops-app=${IMAGE_NAME}:${IMAGE_TAG} || \
-                        kubectl apply -f deployment.yaml
-
-                    kubectl apply -f service.yaml
-
-                    # Wait for rollout to complete (timeout 60s)
-                    kubectl rollout status deployment/flask-devops-app --timeout=60s
-                """
-            }
+stage('Deploy to Kubernetes') {
+    steps {
+        dir('flask-devops-app') {
+            sh """
+                kubectl apply -f deployment.yaml
+                kubectl apply -f service.yaml
+                kubectl set image deployment/${APP_NAME} ${APP_NAME}=${IMAGE_NAME}:${IMAGE_TAG}
+                kubectl rollout status deployment/${APP_NAME} --timeout=120s
+            """
         }
+    }
+}
 
         stage('Verify Deployment') {
             steps {
