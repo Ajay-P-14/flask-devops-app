@@ -25,8 +25,11 @@ pipeline {
             steps {
                 echo "Building Docker image..."
                 sh """
-                    docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
-                    docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest
+                    pwd
+            ls -la
+            cat Dockerfile
+            DOCKER_BUILDKIT=0 docker build -f Dockerfile -t ${IMAGE_NAME}:${IMAGE_TAG} .
+            docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest
                 """
             }
         }
