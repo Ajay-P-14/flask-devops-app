@@ -2,10 +2,10 @@ pipeline {
     agent any
 
     environment {
-        APP_NAME    = "flask-devops-app"
-        IMAGE_NAME  = "ajayp/flask-devops-app"
-        IMAGE_TAG   = "${BUILD_NUMBER}"
-        CONTAINER   = "flask-test-container"
+        APP_NAME   = "flask-devops-app"
+        IMAGE_NAME = "ajayp/flask-devops-app"
+        IMAGE_TAG  = "${BUILD_NUMBER}"
+        CONTAINER  = "flask-test-container"
     }
 
     stages {
@@ -32,9 +32,18 @@ pipeline {
             steps {
                 echo "Running container for health check..."
                 sh """
+                    # Stop if previous test container is still running
+                    docker rm -f ${CONTAINER} || true
+
                     docker run -d --name ${CONTAINER} -p 5000:5000 ${IMAGE_NAME}:${IMAGE_TAG}
                     sleep 5
-                    curl -f http://localhost:5000/health
+
+                    # Health check with retry
+                    for i in 1 2 3; do
+                        curl -f http://localhost:5000/health && break
+                        echo "Retry \$i..."
+                        sleep 3
+                    done
                 """
             }
         }
@@ -51,6 +60,7 @@ pipeline {
                         echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin
                         docker push ${IMAGE_NAME}:${IMAGE_TAG}
                         docker push ${IMAGE_NAME}:latest
+                        docker logout
                     """
                 }
             }
@@ -60,8 +70,25 @@ pipeline {
             steps {
                 echo "Deploying application to Kubernetes..."
                 sh """
-                    kubectl apply -f deployment.yaml
+                    # Dynamically update the image tag in deployment
+                    kubectl set image deployment/flask-devops-app \
+                        flask-devops-app=${IMAGE_NAME}:${IMAGE_TAG} || \
+                        kubectl apply -f deployment.yaml
+
                     kubectl apply -f service.yaml
+
+                    # Wait for rollout to complete (timeout 60s)
+                    kubectl rollout status deployment/flask-devops-app --timeout=60s
+                """
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                echo "Verifying deployment..."
+                sh """
+                    kubectl get pods -l app=flask-devops-app
+                    kubectl get svc flask-devops-app
                 """
             }
         }
@@ -69,16 +96,25 @@ pipeline {
 
     post {
         always {
-            echo "Cleaning up test container..."
-            sh "docker rm -f ${CONTAINER} || true"
-        }
+            echo "Cleaning up..."
+            sh """
+                # Remove test container
+                docker rm -f ${CONTAINER} || true
 
+                # Remove old images (keep last 3 builds)
+                docker images ${IMAGE_NAME} --format '{{.Tag}}' | \
+                    grep -v latest | \
+                    sort -n | \
+                    head -n -3 | \
+                    xargs -r -I {} docker rmi ${IMAGE_NAME}:{} || true
+            """
+        }
         success {
-            echo "CI/CD Pipeline completed successfully 🚀"
+            echo "✅ CI/CD Pipeline completed successfully! Image: ${IMAGE_NAME}:${IMAGE_TAG}"
         }
-
         failure {
-            echo "Pipeline failed ❌ Check Jenkins logs"
+            echo "❌ Pipeline failed! Check logs above."
+            // Optional: add Slack/email notification here
         }
     }
 }
